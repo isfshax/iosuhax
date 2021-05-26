@@ -284,4 +284,4 @@ if input_fn != None:
 	
 	# Write our patched fw.img file
 	if output_fn != None:
-		fw.write(open(output_fn, "w+b"), False)
+		fw.write(open(output_fn, "w+b"), True)
