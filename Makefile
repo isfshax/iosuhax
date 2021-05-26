@@ -1,49 +1,44 @@
-INPUT := bin/fw.img.full.bin
-INPUT_SECTIONS := $(addprefix sections/, $(addsuffix .bin, $(SECTIONS)))
-PATCHED_SECTIONS := $(addprefix patched_sections/, $(addsuffix .bin, $(SECTIONS)))
+INPUT := img/fw.img
+SECTIONS := 0x10700000 0x10800000 0x8120000 0x5000000 0x5100000 0x8140000 0x4000000 0x5060000 0xE0000000
+BSS_SECTIONS := 0x5074000 0x8150000
+INPUT_SECTIONS := $(addprefix patches/sections/, $(addsuffix .bin, $(SECTIONS)))
+PATCHED_SECTIONS := $(addprefix patches/patched_sections/, $(addsuffix .bin, $(SECTIONS)))
+
+ifeq ($(OS),Windows_NT)
+	ARMIPS := armips.exe
+else
+	ARMIPS := armips
+endif
 
 .PHONY: all clean wupserver/wupserver.bin
 
-all: redNAND
-
-redNAND:
-	@$(MAKE) SECTIONS="0x10700000 0x10800000 0x8120000 0x5000000 0x5100000 0x8140000 0x4000000 0xE0000000" BSS_SECTIONS="0x10835000 0x5074000 0x8150000" fw.img
-
-cfw:
-	@$(MAKE) SECTIONS="0x8120000 0x5000000 0x5100000 0x8140000 0x4000000 0xE0000000" BSS_SECTIONS="0x5074000 0x8150000" fw.img
-	
-cfw-coldboot:
-	@$(MAKE) SECTIONS="0x8120000 0x5000000 0x5100000 0x8140000 0x4000000 0x5060000 0xE0000000" BSS_SECTIONS="0x5074000 0x8150000" fw.img
-
-$(INPUT):
-	@cd bin && python getfwimg.py
-
-sections/%.bin: $(INPUT) 
-	@mkdir -p sections
-	@cd sections && python gensections.py
-	@python scripts/anpack.py -in $(INPUT) -e $*,$@
+all: isfshax.bin
 
 extract: $(INPUT_SECTIONS)
 
-wupserver/wupserver.bin:
-	@cd wupserver && make
-	
-ios_fs/ios_fs.bin:
-	@make -C ios_fs
-
-patched_sections/%.bin: sections/%.bin patches/%.s wupserver/wupserver.bin ios_fs/ios_fs.bin
-	@mkdir -p patched_sections
-	@echo patches/$*.s
-	@armips patches/$*.s
-
 patch: $(PATCHED_SECTIONS)
 
-fw.img: $(INPUT) $(PATCHED_SECTIONS)
-	@python scripts/anpack.py -in $(INPUT) -out fw.img $(foreach s,$(SECTIONS),-r $(s),patched_sections/$(s).bin) $(foreach s,$(BSS_SECTIONS),-b $(s),patched_sections/$(s).bin)
- 
+img/fw.img:
+	@python2 scripts/verify-keys.py
+	@mkdir -p img
+	@python2 scripts/getfwimg.py
+
+wupserver/wupserver.bin:
+	@cd wupserver && make
+
+patches/sections/%.bin: $(INPUT)
+	@mkdir -p patches/sections
+	@python2 scripts/anpack.py -in $(INPUT) -e $*,$@
+
+patches/patched_sections/%.bin: patches/sections/%.bin patches/%.s wupserver/wupserver.bin
+	@mkdir -p patches/patched_sections
+	@echo patches/$*.s
+	$(ARMIPS) patches/$*.s
+
+isfshax.bin: $(INPUT) $(INPUT_SECTIONS) $(PATCHED_SECTIONS)
+	@python2 scripts/anpack.py -in $(INPUT) -out isfshax.bin $(foreach s,$(SECTIONS),-r $(s),patches/patched_sections/$(s).bin) $(foreach s,$(BSS_SECTIONS),-b $(s),patches/patched_sections/$(s).bin)
+
 clean:
-	@rm -f fw.img
-	@rm -f sections/*.bin
-	@rm -fr patched_sections
 	@make -C wupserver clean
-	@make -C ios_fs clean
+	@rm -rf isfshax.bin patches/patched_sections/ patches/sections/ img/
+

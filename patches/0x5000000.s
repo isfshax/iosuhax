@@ -1,11 +1,22 @@
 .arm.big
 
-.open "sections/0x5000000.bin","patched_sections/0x5000000.bin",0x05000000
+.open "patches/sections/0x5000000.bin","patches/patched_sections/0x5000000.bin",0x05000000
 
-SECTION_BASE equ 0x05000000
-SECTION_SIZE equ 0x000598f0
-CODE_BASE equ (SECTION_BASE + SECTION_SIZE)
-MCP_BSS_START equ (0x5074000 + 0x48574)
+CODE_SECTION_BASE equ 0x05000000
+CODE_SECTION_SIZE equ 0x000598F0
+CODE_BASE equ (CODE_SECTION_BASE + CODE_SECTION_SIZE)
+
+RODATA_SECTION_BASE equ 0x05060000
+RODATA_SECTION_SIZE equ 0x0000FFC4
+RODATA_BASE equ (RODATA_SECTION_BASE + RODATA_SECTION_SIZE)
+
+DATA_SECTION_BASE equ 0x05070000
+DATA_SECTION_SIZE equ 0x00003420
+DATA_BASE equ (DATA_SECTION_BASE + DATA_SECTION_SIZE)
+
+BSS_SECTION_BASE equ 0x05074000
+BSS_SECTION_SIZE equ 0x00048574
+BSS_BASE equ (BSS_SECTION_BASE + BSS_SECTION_SIZE)
 
 MCP_FSA_OPEN_T equ 0x05059160
 MCP_FSA_MOUNT_T equ 0x05059530
@@ -126,7 +137,7 @@ NEW_TIMEOUT equ (0xFFFFFFFF) ; over an hour
 
 .Close
 
-.open "sections/0x5100000.bin","patched_sections/0x5100000.bin",0x05100000
+.open "patches/sections/0x5100000.bin","patches/patched_sections/0x5100000.bin",0x05100000
 
 ; append wupserver code
 .org 0x5116000
@@ -136,9 +147,9 @@ NEW_TIMEOUT equ (0xFFFFFFFF) ; over an hour
 
 .Close
 
-.create "patched_sections/0x5074000.bin",0x5074000
+.create "patches/patched_sections/0x5074000.bin",0x5074000
 
-.org MCP_BSS_START
+.org BSS_BASE
 
 .org 0x050BD000
 	wupserver_stack:

@@ -1,13 +1,6 @@
 #!/usr/bin/python
 
-# insert keys here, your keys were set correctly if the crc32 of the fw.img
-# is d674201b and the crc32 of the fw.img.full.bin is 9f2c91ff in the end
-wiiu_common_key = "you have to insert this yourself"
-starbuck_ancast_key = "you have to insert this yourself"
-
-# Don't edit past here
-
-import os, sys, zlib, binascii
+import os, sys, zlib, binascii, ConfigParser
 import codecs
 from Crypto.Cipher import AES
 
@@ -16,32 +9,20 @@ try:
 except ImportError:
     from urllib2 import urlopen
 
-print("somewhat simple 5.5.1 fw.img downloader")
+print("Preparing fw.img...")
 
-otpbinpath = os.path.abspath("../../otp.bin")
-if os.path.exists(otpbinpath):
-    with open(otpbinpath,'rb') as f:
-        f.seek(0x90)
-        starbuck_ancast_key = binascii.hexlify(f.read(16))
-        f.seek(0xE0)
-        wiiu_common_key = binascii.hexlify(f.read(16))
-        print("Using keys from otp.bin")
-else:
-    print("Using keys edited into this file")
+cfg = ConfigParser.ConfigParser()
+cfg.read("Keys.txt")
+wiiu_common_key=cfg.get("KEYS", "wii_u_common_key")
+starbuck_ancast_key=cfg.get("KEYS", "starbuck_ancast_key")
 
 #prepare keys
 wiiu_common_key = codecs.decode(wiiu_common_key, 'hex')
 starbuck_ancast_key = codecs.decode(starbuck_ancast_key, 'hex')
 
-if zlib.crc32(wiiu_common_key) & 0xffffffff != 0x7a2160de:
-    print("wiiu_common_key is wrong")
-    sys.exit(1)
+os.chdir("img");
 
-if zlib.crc32(starbuck_ancast_key) & 0xffffffff != 0xe6e36a34:
-    print("starbuck_ancast_key is wrong")
-    sys.exit(1)
-
-print("downloading osv10 cetk")
+print("Downloading osv10 cetk...")
 
 #download osv10 cetk
 f = urlopen("http://ccs.cdn.wup.shop.nintendo.net/ccs/download/000500101000400A/cetk")
@@ -58,7 +39,7 @@ iv = codecs.decode("000500101000400A0000000000000000", 'hex')
 cipher = AES.new(wiiu_common_key, AES.MODE_CBC,iv)
 dec_key = cipher.decrypt(enc_key)
 
-print("downloading fw.img")
+print("Downloading fw.img...")
 #download encrypted 5.5.1 fw img
 
 f = urlopen("http://ccs.cdn.wup.shop.nintendo.net/ccs/download/000500101000400A/0000136e")
@@ -66,7 +47,7 @@ if not f:
     print("0000136e download failed!")
     sys.exit(2)
 
-print("decrypt first")
+print("Decrypt first...")
 #decrypt fw img with our decrypted key
 with open("fw.img","wb") as fout:
     iv = codecs.decode("00090000000000000000000000000000", "hex")
@@ -83,7 +64,7 @@ with open('fw.img', 'rb') as f:
         print("fw.img is corrupt, try again")
         sys.exit(2)
 
-print("decrypt second")
+print("Decrypt second...")
 #decrypt ancast image with ancast key and (for now) wrong iv
 with open("fw.img", "rb") as f:
     with open("fw.img.full.bin","wb") as fout:
@@ -97,19 +78,15 @@ with open("fw.img", "rb") as f:
             enc = cipher.decrypt(dec)
             fout.write(enc)
 
-print("decrypt third")
+print("Decrypt third...")
 #fix up ancast image with correct iv
 with open('fw.img.full.bin', 'rb+') as f:
     #grab iv from decrypted image
     f.seek(0x86B3C,0)
     starbuck_ancast_iv = f.read(0x10)
     if zlib.crc32(starbuck_ancast_iv) & 0xffffffff != 0xb3f79023:
-        print("starbuck_ancast_iv is wrong")
+        print("starbuck_ancast_iv is wrong.")
         sys.exit(1)
-    #save key and iv for later usage
-    with open('../scripts/keys.py', 'w') as keys_store:
-        keys_store.write("key=\""+codecs.encode(starbuck_ancast_key, 'hex').decode()+"\"\n")
-        keys_store.write("iv=\""+codecs.encode(starbuck_ancast_iv, 'hex').decode()+"\"\n")
     #calculate correct first bytes with correct iv
     f.seek(0x200,0)
     starbuck_ancast_iv = bytearray(starbuck_ancast_iv)
@@ -123,7 +100,7 @@ with open('fw.img.full.bin', 'rb+') as f:
 
 with open('fw.img.full.bin', 'rb') as f:
     if (zlib.crc32(f.read()) & 0xffffffff) != 0x9f2c91ff:
-        print("fw.img.full.bin is corrupt, try again with better keys")
+        print("fw.img.full.bin is corrupt, try again with better keys.")
         sys.exit(2)
 
-print("done!")
+print("Done.")

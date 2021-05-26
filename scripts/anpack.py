@@ -1,10 +1,17 @@
-import codecs
 import sys
 import struct
 import hashlib
-import keys
+import ConfigParser
 from Crypto.Cipher import AES
 
+# Starbuck ancast keys
+cfg = ConfigParser.ConfigParser()
+cfg.read("Keys.txt")
+
+ancast_key=cfg.get("KEYS", "starbuck_ancast_key")
+ancast_iv=cfg.get("KEYS", "starbuck_ancast_iv")
+
+# ELF32 header parsing
 class elf32_ehdr:
 	def __init__(self, file, offset):
 		file.seek(offset)
@@ -44,10 +51,11 @@ class elf32_ehdr:
 		print("e_shnum : " + hex(self.e_shnum))
 		print("e_shstrndx : " + hex(self.e_shstrndx))
 
+# ELF32 program header patching methods
 class elf32_phdr:
 	def __init__(self, file, offset, hdr, id):
 		if id >= hdr.e_phnum:
-			raise ValueError("id is invalid yo")
+			raise ValueError("Invalid program header!")
 		file.seek(offset + hdr.e_phoff + hdr.e_phentsize * id)
 		self.id = id
 		self.p_type = struct.unpack(">I", file.read(4))[0]
@@ -64,7 +72,7 @@ class elf32_phdr:
 	def replace_content(self, file):
 		file.seek(0)
 		self.content = file.read()
-		# should check that it's not too big
+		# TODO: Check for overflows
 		self.p_filesz = len(self.content)
 		self.p_memsz = self.p_filesz
 
@@ -87,6 +95,7 @@ class elf32_phdr:
 		print("p_flags : " + hex(self.p_flags))
 		print("p_align : " + hex(self.p_align))
 
+# Main ELF32 methods
 class elf32:
 	def __init__(self, file, offset):
 		self.hdr = elf32_ehdr(file, offset)
@@ -131,22 +140,36 @@ class elf32:
 			print("PHDR " + hex(i))
 			self.phdrs[i]._print()
 
+# Ancast image methods
 class ancast:
 	def __init__(self, file):
+		# Check if the file is encrypted or not
+		file.seek(0x200)
+		fw_stack_size = struct.unpack(">I", file.read(4))[0]
+		
+		# When decrypted, offset 0x200 is always 0x00000100
+		if fw_stack_size != 0x00000100:
+			self.decrypt(file, 0x200)
+
+		# Process decrypted image
 		file.seek(0)
 		self.header = file.read(0x804)
 		self.elf = elf32(file, len(self.header))
-		# self.elf._print()
 
-	def write(self, file):
+	def write(self, file, do_encrypt):
 		file.seek(0)
+		if do_encrypt == False:
+            self.header[]
 		file.write(self.header)
 		self.elf.write(file, len(self.header))
 		file.seek(0, 2)
 		size = file.tell() - 0x200
 		total_size = (size + 0xfff) & ~0xfff
 		file.write(bytearray([0x00] * (total_size - size)))
-		hash = self.encrypt(file, 0x200)
+		if do_encrypt:
+			hash = self.encrypt(file, 0x200)
+		else:
+			hash = self.hash(file, 0x200)
 		file.seek(0x1AC)
 		file.write(struct.pack(">I", total_size))
 		file.write(hash)
@@ -161,10 +184,10 @@ class ancast:
 		self.elf.bss_sections(sections)
 
 	def encrypt(self, file, offset):
-		key = codecs.decode(keys.key, 'hex')
-		iv = codecs.decode(keys.iv, 'hex')
+		key = ancast_key.decode('hex')
+		iv = ancast_iv.decode('hex')
 		file.seek(offset)
-		buffer = b""
+		buffer = ""
 		hash = hashlib.sha1()
 		while True:
 			cipher = AES.new(key, AES.MODE_CBC, iv)
@@ -179,12 +202,43 @@ class ancast:
 		file.write(buffer)
 		return hash.digest()
 
+	def hash(self, file, offset):
+		file.seek(offset)
+		hash = hashlib.sha1()
+		while True:
+			dec = file.read(0x4000)
+			if len(dec) < 0x10:
+				break
+			hash.update(dec)
+		return hash.digest()
+
+	def decrypt(self, file, offset):
+		key = ancast_key.decode('hex')
+		iv = ancast_iv.decode('hex')
+		file.seek(offset)
+		buffer = ""
+		hash = hashlib.sha1()
+		while True:
+			cipher = AES.new(key, AES.MODE_CBC, iv)
+			enc = file.read(0x4000)
+			if len(enc) < 0x10:
+				break
+			dec = cipher.decrypt(enc)
+			hash.update(dec)
+			buffer += dec
+			iv = enc[-0x10:]
+		file.seek(offset)
+		file.write(buffer)
+		return hash.digest()
+
+# Initialize vars
 input_fn = None
 output_fn = None
 replace_sections = {}
 extract_sections = {}
 bss_sections = {}
 
+# Parse input
 i = 1
 while i < len(sys.argv):
 	option = sys.argv[i]
@@ -214,11 +268,20 @@ while i < len(sys.argv):
 			print("	unknown option " + option)
 	i += 1
 
+# Patch the supplied fw.img file
 if input_fn != None:
-	fw = ancast(open(input_fn, "rb"))
+	# Wrap the file as an ancast image
+	fw = ancast(open(input_fn, "r+b"))
+	
+	# Extract the sections to replace from the file
 	fw.extract_sections(extract_sections)
+	
+	# Replace the sections
 	fw.replace_sections(replace_sections)
+	
+	# Set BSS sections
 	fw.bss_sections(bss_sections)
+	
+	# Write our patched fw.img file
 	if output_fn != None:
-		fw.write(open(output_fn, "w+b"))
-	# fw.elf._print()
+		fw.write(open(output_fn, "w+b"), False)

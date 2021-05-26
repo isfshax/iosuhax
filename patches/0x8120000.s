@@ -1,6 +1,6 @@
 .arm.big
 
-.open "sections/0x8120000.bin","patched_sections/0x8120000.bin",0x8120000
+.open "patches/sections/0x8120000.bin","patches/patched_sections/0x8120000.bin",0x8120000
 
 CODE_SECTION_BASE equ 0x08120000
 CODE_SECTION_SIZE equ 0x00015000
@@ -44,7 +44,11 @@ KERNEL_MCP_IOMAPPINGS_STRUCT equ 0x08140DE0
 
 ; replace syscall 0x81 with own syscall
 .org 0x0812CD2C
-    b read32_syscall
+	b read32_syscall
+
+; handle swi syscall 0xAB (RealView)
+.org 0x0812dd68
+	b svcAB_handler
 
 .org CODE_BASE
 
@@ -125,6 +129,81 @@ crash_handler:
 read32_syscall:
     ldr r0, [r0]
     bx lr
+
+
+; redirect __sys_write0 to lolserial
+svcAB_handler:
+	ldmia sp, {r0, r1}
+	cmp r0, #0x4
+	mov r0, r1
+	bleq lolserial_print
+	ldmia sp!, {r0-r12, pc}^
+
+LOLSERIAL_WAIT_TICKS equ 200
+GP_SENSORBAR equ 0x00000100
+GP_SENSORBAR_SHIFT equ 8
+
+lolserial_print:
+	mov r1, #-1
+lolserial_lprint:
+	push {r5-r6}
+	add r1, r1, r0
+
+	ldr r6, =0x0D800000
+
+	ldr r5, [r6, #0x0FC]
+	bic r5, r5, #GP_SENSORBAR
+	str r5, [r6, #0x0FC]
+
+	ldr r5, [r6, #0x0DC]
+	orr r5, r5, #GP_SENSORBAR
+	str r5, [r6, #0x0DC]
+
+	ldr r5, [r6, #0x0E4]
+	orr r5, r5, #GP_SENSORBAR
+	str r5, [r6, #0x0E4]
+
+	ldr r5, [r6, #0x0E0]
+	orr r5, r5, #GP_SENSORBAR
+	str r5, [r6, #0x0E0]
+
+	lolserial_send_string_loop:
+		cmp r0, r1
+		ldrneb r5, [r0], #1
+		cmpne r5, #0
+		beq lolserial_send_string_end    
+
+		mov r3, #0x200
+		orr r3, r3, r5, lsl #1
+
+		lolserial_send_char_loop:
+			and r4, r3, #1
+
+			ldr r5, [r6, #0x0E0]
+			bic r5, r5, #GP_SENSORBAR
+			orr r5, r5, r4, lsl #GP_SENSORBAR_SHIFT
+			str r5, [r6, #0x0E0]
+
+			ldr r5, [r6, #0x010]
+			adds r4, r5, #LOLSERIAL_WAIT_TICKS
+			bcc timer_wait_loop
+			timer_wait_overflow_loop:
+				ldr r2, [r6, #0x010]
+				cmp r2, r5
+				bhs timer_wait_overflow_loop
+			timer_wait_loop:
+				ldr r5, [r6, #0x010]
+				cmp r5, r4
+				blo timer_wait_loop
+
+			movs r3, r3, lsr #1
+			bne lolserial_send_char_loop            
+		
+		b lolserial_send_string_loop
+	lolserial_send_string_end:
+
+	pop {r5-r6}
+	bx lr
 
 ; r0 : x, r1 : y, r2 : format, ...
 ; NOT threadsafe so dont even try you idiot
@@ -208,7 +287,7 @@ font_data:
 .Close
 
 
-.open "sections/0x8140000.bin","patched_sections/0x8140000.bin",0x8140000
+.open "patches/sections/0x8140000.bin","patches/patched_sections/0x8140000.bin",0x8140000
 
 .org KERNEL_MCP_IOMAPPINGS_STRUCT
 	.word mcpIoMappings_patch ; ptr to iomapping structs
@@ -242,7 +321,7 @@ font_data:
 .Close
 
 
-.create "patched_sections/0x8150000.bin",0x8150000
+.create "patches/patched_sections/0x8150000.bin",0x8150000
 
 .org KERNEL_BSS_START
 	_printf_xylr:
