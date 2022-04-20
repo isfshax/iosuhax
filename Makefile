@@ -12,7 +12,7 @@ endif
 
 .PHONY: all clean wupserver/wupserver.bin
 
-all: isfshax.bin
+all: fw.img
 
 extract: $(INPUT_SECTIONS)
 
@@ -35,10 +35,10 @@ patches/patched_sections/%.bin: patches/sections/%.bin patches/%.s wupserver/wup
 	@echo patches/$*.s
 	$(ARMIPS) patches/$*.s
 
-isfshax.bin: $(INPUT) $(INPUT_SECTIONS) $(PATCHED_SECTIONS)
-	@python2 scripts/anpack.py -in $(INPUT) -out isfshax.bin $(foreach s,$(SECTIONS),-r $(s),patches/patched_sections/$(s).bin) $(foreach s,$(BSS_SECTIONS),-b $(s),patches/patched_sections/$(s).bin)
+fw.img: $(INPUT) $(INPUT_SECTIONS) $(PATCHED_SECTIONS)
+	@python2 scripts/anpack.py -in $(INPUT) -out $@ $(foreach s,$(SECTIONS),-r $(s),patches/patched_sections/$(s).bin) $(foreach s,$(BSS_SECTIONS),-b $(s),patches/patched_sections/$(s).bin)
 
 clean:
 	@make -C wupserver clean
-	@rm -rf isfshax.bin patches/patched_sections/ patches/sections/ img/
+	@rm -rf fw.img patches/patched_sections/ patches/sections/ img/
 
