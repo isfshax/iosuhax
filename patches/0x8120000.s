@@ -139,9 +139,18 @@ svcAB_handler:
 	bleq lolserial_print
 	ldmia sp!, {r0-r12, pc}^
 
+; 9600 baud
 LOLSERIAL_WAIT_TICKS equ 200
-GP_SENSORBAR equ 0x00000100
-GP_SENSORBAR_SHIFT equ 8
+
+.if 1
+; GP_SENSORBAR
+LOLSERIAL_PIN equ 0x00000100
+LOLSERIAL_PIN_SHIFT equ 8
+.else
+; GP_DEBUG0
+LOLSERIAL_PIN equ 0x00010000
+LOLSERIAL_PIN_SHIFT equ 16
+.endif
 
 lolserial_print:
 	mov r1, #-1
@@ -152,19 +161,19 @@ lolserial_lprint:
 	ldr r6, =0x0D800000
 
 	ldr r5, [r6, #0x0FC]
-	bic r5, r5, #GP_SENSORBAR
+	bic r5, r5, #LOLSERIAL_PIN
 	str r5, [r6, #0x0FC]
 
 	ldr r5, [r6, #0x0DC]
-	orr r5, r5, #GP_SENSORBAR
+	orr r5, r5, #LOLSERIAL_PIN
 	str r5, [r6, #0x0DC]
 
 	ldr r5, [r6, #0x0E4]
-	orr r5, r5, #GP_SENSORBAR
+	orr r5, r5, #LOLSERIAL_PIN
 	str r5, [r6, #0x0E4]
 
 	ldr r5, [r6, #0x0E0]
-	orr r5, r5, #GP_SENSORBAR
+	orr r5, r5, #LOLSERIAL_PIN
 	str r5, [r6, #0x0E0]
 
 	lolserial_send_string_loop:
@@ -180,8 +189,8 @@ lolserial_lprint:
 			and r4, r3, #1
 
 			ldr r5, [r6, #0x0E0]
-			bic r5, r5, #GP_SENSORBAR
-			orr r5, r5, r4, lsl #GP_SENSORBAR_SHIFT
+			bic r5, r5, #LOLSERIAL_PIN
+			orr r5, r5, r4, lsl #LOLSERIAL_PIN_SHIFT
 			str r5, [r6, #0x0E0]
 
 			ldr r5, [r6, #0x010]
