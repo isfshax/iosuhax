@@ -153,13 +153,13 @@ class ancast:
 
 		# Process decrypted image
 		file.seek(0)
-		self.header = file.read(0x804)
+		self.header = bytearray(file.read(0x804))
 		self.elf = elf32(file, len(self.header))
 
 	def write(self, file, do_encrypt):
 		file.seek(0)
 		if do_encrypt == False:
-            self.header[]
+			self.header[0x1A1] = 1
 		file.write(self.header)
 		self.elf.write(file, len(self.header))
 		file.seek(0, 2)
