@@ -19,16 +19,16 @@ extract: $(INPUT_SECTIONS)
 patch: $(PATCHED_SECTIONS)
 
 img/fw.img:
-	@python2 scripts/verify-keys.py
+	@python scripts/verify-keys.py
 	@mkdir -p img
-	@python2 scripts/getfwimg.py
+	@python scripts/getfwimg.py
 
 wupserver/wupserver.bin:
 	@cd wupserver && make
 
 patches/sections/%.bin: $(INPUT)
 	@mkdir -p patches/sections
-	@python2 scripts/anpack.py -in $(INPUT) -e $*,$@
+	@python scripts/anpack.py -in $(INPUT) -e $*,$@
 
 patches/patched_sections/%.bin: patches/sections/%.bin patches/%.s wupserver/wupserver.bin
 	@mkdir -p patches/patched_sections
@@ -36,7 +36,7 @@ patches/patched_sections/%.bin: patches/sections/%.bin patches/%.s wupserver/wup
 	$(ARMIPS) patches/$*.s
 
 fw.img: $(INPUT) $(INPUT_SECTIONS) $(PATCHED_SECTIONS)
-	@python2 scripts/anpack.py -in $(INPUT) -out $@ $(foreach s,$(SECTIONS),-r $(s),patches/patched_sections/$(s).bin) $(foreach s,$(BSS_SECTIONS),-b $(s),patches/patched_sections/$(s).bin)
+	@python scripts/anpack.py -in $(INPUT) -out $@ $(foreach s,$(SECTIONS),-r $(s),patches/patched_sections/$(s).bin) $(foreach s,$(BSS_SECTIONS),-b $(s),patches/patched_sections/$(s).bin)
 
 clean:
 	@make -C wupserver clean

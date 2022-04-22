@@ -1,11 +1,12 @@
 import sys
 import struct
 import hashlib
-import ConfigParser
-from Crypto.Cipher import AES
+import configparser
+import codecs
+from Cryptodome.Cipher import AES
 
 # Starbuck ancast keys
-cfg = ConfigParser.ConfigParser()
+cfg = configparser.ConfigParser()
 cfg.read("Keys.txt")
 
 ancast_key=cfg.get("KEYS", "starbuck_ancast_key")
@@ -146,7 +147,7 @@ class ancast:
 		# Check if the file is encrypted or not
 		file.seek(0x200)
 		fw_stack_size = struct.unpack(">I", file.read(4))[0]
-		
+
 		# When decrypted, offset 0x200 is always 0x00000100
 		if fw_stack_size != 0x00000100:
 			self.decrypt(file, 0x200)
@@ -184,10 +185,10 @@ class ancast:
 		self.elf.bss_sections(sections)
 
 	def encrypt(self, file, offset):
-		key = ancast_key.decode('hex')
-		iv = ancast_iv.decode('hex')
+		key = codecs.decode(ancast_key, 'hex')
+		iv = codecs.decode(ancast_iv, 'hex')
 		file.seek(offset)
-		buffer = ""
+		buffer = b''
 		hash = hashlib.sha1()
 		while True:
 			cipher = AES.new(key, AES.MODE_CBC, iv)
@@ -213,10 +214,10 @@ class ancast:
 		return hash.digest()
 
 	def decrypt(self, file, offset):
-		key = ancast_key.decode('hex')
-		iv = ancast_iv.decode('hex')
+		key = codecs.decode(ancast_key, 'hex')
+		iv = codecs.decode(ancast_iv, 'hex')
 		file.seek(offset)
-		buffer = ""
+		buffer = b''
 		hash = hashlib.sha1()
 		while True:
 			cipher = AES.new(key, AES.MODE_CBC, iv)
@@ -272,16 +273,16 @@ while i < len(sys.argv):
 if input_fn != None:
 	# Wrap the file as an ancast image
 	fw = ancast(open(input_fn, "r+b"))
-	
+
 	# Extract the sections to replace from the file
 	fw.extract_sections(extract_sections)
-	
+
 	# Replace the sections
 	fw.replace_sections(replace_sections)
-	
+
 	# Set BSS sections
 	fw.bss_sections(bss_sections)
-	
+
 	# Write our patched fw.img file
 	if output_fn != None:
 		fw.write(open(output_fn, "w+b"), True)

@@ -1,8 +1,8 @@
 #!/usr/bin/python
 
-import os, sys, zlib, binascii, ConfigParser
+import os, sys, zlib, binascii, configparser
 import codecs
-from Crypto.Cipher import AES
+from Cryptodome.Cipher import AES
 
 try:
     from urllib.request import urlopen
@@ -11,7 +11,7 @@ except ImportError:
 
 print("Preparing fw.img...")
 
-cfg = ConfigParser.ConfigParser()
+cfg = configparser.ConfigParser()
 cfg.read("Keys.txt")
 wiiu_common_key=cfg.get("KEYS", "wii_u_common_key")
 starbuck_ancast_key=cfg.get("KEYS", "starbuck_ancast_key")
